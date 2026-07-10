@@ -1,140 +1,158 @@
 from enum import Enum
-
-from config import RED_SQUARE, BLUE_SQUARE
+from config import (
+    RED_SQUARE,
+    BLUE_SQUARE,
+    MISSION_TARGETS
+)
 
 class MissionState(Enum):
-    #Görev Durumları
-    IDLE = 0            #Görev başlamadı.
-    SEARCH = 1          #Hedef aranıyor                    
-    TRACK = 2           #Hedef takip ediliyor.
-    DROP = 3            #Yük bırakılıyor
-    FINISHED = 4        #Görev tamamlandı.
-
+    '''
+    Görev durumları
+    '''
+    IDLE = 0            #Görev başlamadı
+    SEARCH = 1          #Hedef aranıyor
+    TRACK = 2           #Hedef takip ediliyor
+    PAYLOAD = 3         #Yük bırakılıyor
+    FINISHED = 4        #Görev tamamlandı
 
 class Mission:
-    """
-    Görev yöneticisi.
-
-    Sorumlulukları:
-    - Hedef sırasını belirlemek
-    - Görev durumunu yönetmek
-    - Kaç yük bırakıldığını takip etmek
-    - Bir sonraki hedefe geçmek
-    """
-
+    ''''
+    Görev yöneticisi sınıfı
+    Sorumluluklar:
+        -Hedef sırasını belirlemek
+        -Görev durumunu yönetmek
+        -Kaç yük bırakıldığını takip etmek
+        -Bir sonraki hedefe geçmek
+    '''
 
     def __init__(self):
-        #Görev durumu
-        self.state = MissionState.IDLE
 
-        #Operatörün yük seçimi
+        #Görev durumu
+        self.current_state = MissionState.IDLE
+        
+        #Operatörün yük seçimi (Aranacak alanın isimlerinin sırasıyla listesi)
         self.target_sequence = []
 
-        #Şuan takip edilen hedef
-        self.current_target_index = 0
+        #Şu an odaklanılan hedefin target_sequence içindeki indeksi
+        self.current_index = 0
 
-        #Bırakılna yük sayısı
+        #Bırakılan yük sayısı
         self.drop_count = 0
 
         #Hedef bulundu mu ?
         self.target_detected = False
 
-        #Tracker hedefi kilitledi mi?
+        #Kamera hedefe tam olarak kilitlendi mi (merkezlendi mi)
         self.target_locked = False
 
 
     def select_payload_order(self, first_payload: str):
-        '''
-        İlk bırakılacak yükü belirler.
-
-        red -> blue_square -> red_square
-        blue -> red_square -> blue_square
-        '''
-
-        if first_payload.lower() == 'red':
-
+        """
+        İlk bırakılacak yükün rengine göre tüm görev sırasını belirler.
+        Örnek: 
+        İlk yük 'red'  ise, önce mavi alan bulunmmalı, sonra kırmızı.
+        """
+        if first_payload == 'red':
             self.target_sequence = [
                 BLUE_SQUARE,
                 RED_SQUARE
             ]
 
-        elif first_payload.lower == 'Blue':
-
+        elif first_payload == 'blue':
             self.target_sequence = [
                 RED_SQUARE,
                 BLUE_SQUARE
             ]
 
-        else: 
+        else:
             raise ValueError('Geçersiz yük')
         
-        self.state = MissionState.SEARCH
+        self.current_state = MissionState.SEARCH
 
 
-        def get_current_target(self):
-            '''
-            Şu anda aranacak hedef
-            '''
-            return self.target_sequence[self.current_target_index]
+    def get_current_target(self):
+        '''
+        Şu anda aranacak hedef
+        '''
 
-        def target_found(self):
-            '''
-            Hedef bulundu.
-            '''
-            self.target_detected = True
-            self.state= MissionState.TRACK
-
-        def target_lost(self):
-            '''
-            Hedef kaybedildi.
-            '''
-            self.target_detected = False
-            self.target_locked = False
-            self.state = MissionState.SEARCH
-
-        def target_lock(self):
-            '''
-            Tracker hedefi başarıyla kilitledi
-            '''
-            self.target_locked = True
-
-        def target_unlock(self):
-            '''
-            Kilit kaybedildi.
-            '''
-            self.target_locked = False
-            self.state = MissionState.SEARCH
-
-        def ready_to_drop(self) -> bool:
-            '''
-            Yük bırakmaya hazır mı ? 
-            '''
-            return self.target_detected and self.target_locked
+        if (
+            not self.target_sequence #1. Durum: Hedef listesi bomboş mu?
+            or self.current_index >= len(self.target_sequence)): #2. Durum: Sıra bitti mi?
+            return None 
         
+        return self.target_sequence[self.current_index]
+    
 
-        def payload_dropped(self):
-            '''
-            Servo yükü bıraktıktan sonra çağrılır.
-            '''
-            self.drop_count += 1
-            self.current_target_index += 1
+    def target_found(self):
+        '''
+        Hedef bulundu
+        '''
 
-            self.target_detected = False
-            self.target_locked = False
+        self.target_detected = True
+        self.current_state = MissionState.TRACK
 
-            if self.current_target_index >= len(self.target_sequence):
-                self.state = MissionState.FINISHED
-            else:
-                self.state = MissionState.SEARCH
 
-        def is_finished(self) -> bool:
-            '''
-            Görev tamamlandı mı ?
-            '''
-            return self.state == MissionState.FINISHED
+    def target_lost(self):
+        '''
+        Hedef kaybedildi.
+        '''
 
-        def set_state(self, state: MissionState):
-            '''
-            Görev durumunu değiştir.
-            '''
-            self.state = state
+        self.target_detected = False
+        self.target_locked = False
+        self.current_state = MissionState.SEARCH
+
+
+    def target_unlock(self):
+        '''
+        Kilit kaybedildi
+        '''
+
+        self.target_locked = False
+        self.current_state = MissionState.SEARCH
+
+
+    def ready_to_drop(self) -> bool:
+        '''
+        Yük bırakılmaya hazır mı ?
+        '''
+
+        return self.target_detected and self.target_locked
+    
+
+    def payload_dropped(self):
+        '''
+        Yük bırakma.
+        ! Servo yükü bıraktıktan sonra çağrılır !
+        '''
+
+        self.current_index += 1 
+        self.drop_count +=1
+
+        # Yeni hedef için kilitleri sıfırlama
+        self.target_detected =False
+        self.target_locked = False
+
+        # Tüm hedefler bitti mi ?
+        if self.current_index >= len(self.target_sequence):
+            self.current_state = MissionState.FINISHED
+        else:
+            self.current_state = MissionState.SEARCH
+
+
+    def is_finished(self) -> bool:
+        '''
+        Görev tamamlandı mı ? 
+        '''
+
+        return self.current_state == MissionState.FINISHED
+    
+
+    def set_state(self, state: MissionState):
+        '''
+        Görev durumunu dışarıdan değiştir.
+        '''
+
+        if isinstance(state, MissionState):
+            self.current_state = state
+        else:
+            raise TypeError("State parametresi Mission state Enum'ı olmal")
