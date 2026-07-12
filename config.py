@@ -41,3 +41,14 @@ CENTER_THRESHOLD = 20
 LOCK_FRAME_COUNT = 5
 LOST_FRAME_COUNT = 10
 
+
+
+#Communication
+#Pixhawk bağlantı portu
+PORT = "/dev/ttyACM0"
+
+#MAVLink haberleşme hızı
+BAUDRATE = 57600
+
+#Heartbeat bekleme süresi (saniye)
+CONNECTION_TIMEOUT = 5
